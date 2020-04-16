@@ -1,4 +1,4 @@
-#!/usr/bin/env perl6
+#!/usr/bin/env raku
 
 # schatter.pl6
 # Theo van den Heuvel, March 2020
@@ -69,57 +69,66 @@ my $trainset-size = 14;
 # }
 
 class FunModel {
-    has $.name;
-    has @.parm-name;
-    has &.calc;
+    has $!name;
+    has &!calc;
+
+    method new($name, &calc) {
+        return self.bless(:$name, :&calc);
+    }
+    submethod BUILD(:$!name, :&!calc) {}
 
     method calculate(*@arg) {
-        note "name $!name, parms @!parm-name[]";
+        note "name $!name, sign: {&!calc.signature || '--'}";
         without &!calc {
             die "calc not defined";
         }
-        &!calc(@arg);
+        say @arg.perl;
+        my &f =  &!calc(|@arg);
+        say &f.perl;
+        &f;
     }
     method gist {
-        return "$!name, @!parm-name[], {&!calc ?? &!calc(0) !! 'no calc'}";
+        return "$!name";
     }
 }
-my FunModel $linear .= new:
-    name=> 'linear', 
-    parm-name=><slope intercept>,
-    calc=> { say "calcing"};
+# my &f = -> $slope, $intercept { say "calcing";  -> $x { $slope * $x + $intercept }};
+# say &f;
+# say &f.signature;
 
-#    calc=> -> $slope, $intercept { -> $x { $slope * $x + $intercept }};
+my FunModel $linear .= new:
+    'linear', 
+    -> $slope, $intercept { say "calcing";  -> $x { $slope * $x + $intercept }};
+
 
 class Guess {
     has FunModel $!fun-model;
     has @!parm;
-    has $.error;
-    submethod BUILD(FunModel :$fun-model, :@parm) {
-        $!fun-model = $fun-model;
-        @!parm = @parm;
-        $!error = errsqd($!fun-model.calculate(@parm));
-        say $!fun-model.name;
+    has $!error;
+    submethod BUILD(:$!fun-model, :@!parm) {}
+    submethod TWEAK() {
+        say "tweaking!";
+        $!error = 42;
+        with $!fun-model {
+            $!error = errsqd($!fun-model.calculate(@!parm));
+        }
+        say "tweaking done";
     }
+    method gist { say $!error }
 }
 
 sub errsqd(&f) {
-    my $errsq = 0;
-    for @data.head($trainset-size).kv -> $k, $v {
-        $errsq += ($v - &f($k)) ** 2;
-    }
-    return $errsq;
+    [+] @data.head($trainset-size).kv.map: -> $k, $v { ($v - &f($k)) ** 2 }
 }
 
-sub test () {
+sub test1 () {
     say $linear;
 }
-sub test1 () {
+sub test2 () {
     my Guess $guess .= new: fun-model=> $linear, parm=>(0, 0);
-    say $guess.error;   
+    say $guess;   
 }
 
-test();
+test2();
 
 # # # find best 
 # my @parm = 0, 0;
